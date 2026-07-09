@@ -1,0 +1,18 @@
+{
+  "name": "Circuit Mentor - Virtual Electronics Workbench",
+  "short_name": "Circuit Mentor",
+  "description": "An interactive web app to design, simulate, and understand electronics with real-time AI guidance.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0d1117",
+  "theme_color": "#00f2fe",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "./src/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

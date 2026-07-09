@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Circuit Mentor - Virtual Electronics Workbench</title>
+    
+    <!-- Meta tag description and theme color for mobile browsers -->
+    <meta name="description" content="Build, simulate, and debug circuits with real-time AI mentoring and interactive graphing tools.">
+    <meta name="theme-color" content="#0d1117">
+    
+    <!-- Google Web Fonts for premium typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    
+    <!-- Progressive Web App Manifest -->
+    <link rel="manifest" href="./manifest.json">
+    <link rel="icon" type="image/svg+xml" href="./src/icon.svg">
+    
+    <!-- Application CSS -->
+    <link rel="stylesheet" href="./src/styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      
+      <!-- Left sidebar: branding and components shelf -->
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">CM</div>
+          <div>
+            <h1>Circuit Mentor</h1>
+            <p>Build. Simulate. Understand.</p>
+          </div>
+        </div>
+
+        <label class="search">
+          <span>Search parts shelf</span>
+          <input id="componentSearch" type="search" placeholder="Type LED, ESP32, Resistor...">
+        </label>
+
+        <nav class="library" id="componentLibrary" aria-label="Component library">
+          <!-- Populated dynamically by app.js -->
+        </nav>
+      </aside>
+
+      <!-- Center section: workspace bench grid and outputs -->
+      <main class="workspace-wrap">
+        <header class="topbar">
+          <div>
+            <h2>Virtual Workbench</h2>
+            <p id="projectMeta">Arduino starter project - 4 components - 1 check</p>
+          </div>
+          
+          <div class="toolbar" aria-label="Workspace tools">
+            <!-- PWA install button -->
+            <button id="pwaInstallBtn" class="icon-button" type="button" title="Install App to Desktop">Install App</button>
+            
+            <button id="selectTool" class="icon-button" type="button" title="Select Tool">SELECT</button>
+            <button id="wireTool" class="icon-button active" type="button" title="Wire Tool">WIRE</button>
+            
+            <div class="wire-picker" aria-label="Wire color">
+              <button class="wire-swatch active" data-wire-color="#ff4a5a" type="button" title="Red wire"></button>
+              <button class="wire-swatch" data-wire-color="#8b949e" type="button" title="Black wire"></button>
+              <button class="wire-swatch" data-wire-color="#00f2fe" type="button" title="Blue wire"></button>
+              <button class="wire-swatch" data-wire-color="#ffc837" type="button" title="Yellow wire"></button>
+              <button class="wire-swatch" data-wire-color="#34d399" type="button" title="Green wire"></button>
+            </div>
+            
+            <button id="rotateTool" class="icon-button" type="button" title="Rotate Selected component">ROTATE</button>
+            <button id="removeTool" class="icon-button danger-button" type="button" title="Delete selected component">DEL</button>
+            <button id="zoomOut" class="icon-button" type="button" title="Zoom Out">-</button>
+            <output id="zoomValue">100%</output>
+            <button id="zoomIn" class="icon-button" type="button" title="Zoom In">+</button>
+            <button id="runSimulation" class="run-button" type="button">Run Simulation</button>
+          </div>
+        </header>
+
+        <!-- Sandbox Circuit Canvas -->
+        <section class="bench-shell" aria-label="Circuit workbench">
+          <div class="bench-grid" id="workspace">
+            <svg id="wireLayer" class="wire-layer" aria-hidden="true"></svg>
+            <div class="bench-hint" id="benchHint">Click a pin to draw a connection. Press Esc to cancel.</div>
+            <!-- Placed components will render here dynamically -->
+          </div>
+        </section>
+
+        <!-- Lower Panel row: Instruments and AI Chatbot -->
+        <section class="bottom-panels">
+          <div class="instrument-panel">
+            <div class="tabs" id="instrumentTabs">
+              <button class="active" data-tab="multimeter" type="button">Multimeter</button>
+              <button data-tab="scope" type="button">Oscilloscope</button>
+              <button data-tab="serial" type="button">Serial</button>
+              <button data-tab="power" type="button">Power Supply</button>
+            </div>
+            <div class="instrument-readout" id="instrumentReadout">
+              VCC to GND: 0.00 V<br>Continuity: Open<br>Current: 0.0 mA
+            </div>
+          </div>
+
+          <div class="mentor-panel">
+            <div class="mentor-head">
+              <h3>AI Circuit Mentor</h3>
+              <span id="mentorState">Ready</span>
+            </div>
+            <div class="mentor-log" id="mentorLog">
+              <!-- Dynamically populated bubble messages -->
+            </div>
+            <form id="mentorForm" class="mentor-form">
+              <input id="mentorQuestion" type="text" placeholder="Ask what is wrong with your circuit...">
+              <button type="submit">Send</button>
+            </form>
+          </div>
+        </section>
+      </main>
+
+      <!-- Right sidebar: inspectors and checks -->
+      <aside class="inspector">
+        <section class="panel">
+          <h3>Smart Pin Assistant</h3>
+          <div id="pinDetails" class="empty-state">Click any pin on the workspace to inspect voltage, protocol compatibility, and typical applications.</div>
+        </section>
+
+        <section class="panel">
+          <h3>Connection Checks</h3>
+          <div id="checksList" class="checks-list">
+            <div class="check ok">
+              <strong>Checking connections...</strong>
+              <p>Evaluating schematic safety parameters.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel compact">
+          <h3>Simulation Metrics</h3>
+          <div class="metrics">
+            <div><span>Bus Voltage</span><strong id="metricVoltage">0.0 V</strong></div>
+            <div><span>Total Current</span><strong id="metricCurrent">0 mA</strong></div>
+            <div><span>Power Draw</span><strong id="metricPower">0 mW</strong></div>
+            <div><span>Sensor state</span><strong id="metricSensor">Idle</strong></div>
+          </div>
+        </section>
+        
+        <!-- Interactive widgets panel for active control -->
+        <section class="panel compact">
+          <h3>Interactive Sensors</h3>
+          <div class="sensor-ctrl-panel">
+            <div class="sensor-slider">
+              <label for="rangeDistance">Ultrasonic Range: <span id="valDistance" class="val">23 cm</span></label>
+              <input type="range" id="rangeDistance" min="2" max="400" value="23">
+            </div>
+            <div class="sensor-slider">
+              <label for="rangeLight">LDR Ambient Light: <span id="valLight" class="val">50%</span></label>
+              <input type="range" id="rangeLight" min="0" max="100" value="50">
+            </div>
+          </div>
+        </section>
+      </aside>
+    </div>
+
+    <!-- Component details template fallback -->
+    <template id="componentTemplate"></template>
+
+    <!-- AI Proposal Auto-wiring Modal -->
+    <div id="aiAutoModal" class="ai-modal hidden" role="dialog" aria-modal="true" aria-labelledby="aiAutoTitle">
+      <div class="ai-modal-card">
+        <div class="mentor-head">
+          <h3 id="aiAutoTitle">AI Auto-Connect</h3>
+          <span style="background:var(--accent-glow); color:var(--accent); border-color:rgba(0, 242, 254, 0.2)">Proposal</span>
+        </div>
+        <p id="aiAutoMessage">The AI Mentor can automatically wire up the necessary parts for you.</p>
+        <div class="ai-modal-actions">
+          <button id="aiExplainOnly" class="icon-button" type="button" style="border-color:var(--line)">Just Explain</button>
+          <button id="aiAutoConnect" class="run-button" type="button">Auto-Wire It</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Spec chooser modal for basic parts -->
+    <div id="componentModal" class="component-modal hidden" role="dialog" aria-modal="true" aria-labelledby="componentModalTitle">
+      <div class="component-modal-card">
+        <div class="mentor-head">
+          <h3 id="componentModalTitle">Choose Spec</h3>
+          <span id="componentModalKind" style="background:var(--accent-2-glow); color:var(--accent-2); border-color:rgba(255,200,55,0.2)">Value</span>
+        </div>
+        <div id="componentOptions" class="component-options"></div>
+        <label class="custom-spec">
+          <span>Or input custom value:</span>
+          <input id="customSpecInput" type="text" placeholder="e.g. 330 ohm">
+        </label>
+        <div class="ai-modal-actions">
+          <button id="componentCancel" class="icon-button" type="button" style="border-color:var(--line)">Cancel</button>
+          <button id="componentAdd" class="run-button" type="button">Add Component</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Core Script files loaded in order to maintain compatibility with file:// double-click -->
+    <script src="./src/simulator.js"></script>
+    <script src="./src/mentor.js"></script>
+    <script src="./src/app.js"></script>
+  </body>
+</html>
