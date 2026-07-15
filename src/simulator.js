@@ -11,6 +11,7 @@ window.CircuitSimulator = (() => {
     serialOutput: [],
     multimeterReadings: { vccGnd: 0, d13Gnd: 0, current: 0 },
     simulationMetrics: { voltage: 0, current: 0, power: 0, sensor: "Idle" },
+    arduinoProgram: "blink", // blink, potentiometer, ultrasonic, custom
     
     // Interactive inputs changed by user
     inputs: {
@@ -22,6 +23,38 @@ window.CircuitSimulator = (() => {
       dhtHumidity: 45          // %
     }
   };
+
+  // Helper to find all internally connected contacts on a breadboard
+  function getBreadboardConnectedPins(pin, partElement) {
+    const pinName = pin.dataset.pin;
+    const siblings = [];
+    
+    // 1. Inner slots matching row and column groups: e.g. "15a"
+    const innerMatch = pinName.match(/^(\d+)([a-j])$/);
+    if (innerMatch) {
+      const row = innerMatch[1];
+      const col = innerMatch[2];
+      const group = "abcde".includes(col) ? ["a","b","c","d","e"] : ["f","g","h","i","j"];
+      group.forEach(c => {
+        const sib = partElement.querySelector(`.pin[data-pin="${row}${c}"]`);
+        if (sib && sib !== pin) siblings.push(sib);
+      });
+      return siblings;
+    }
+    
+    // 2. Power rails: e.g. "L+15"
+    const railMatch = pinName.match(/^(L\+|L\-|R\+|R\-)(\d+)$/);
+    if (railMatch) {
+      const railPrefix = railMatch[1]; // L+, L-, R+, or R-
+      for (let r = 1; r <= 30; r++) {
+        const sib = partElement.querySelector(`.pin[data-pin="${railPrefix}${r}"]`);
+        if (sib && sib !== pin) siblings.push(sib);
+      }
+      return siblings;
+    }
+    
+    return siblings;
+  }
 
   // Traversal & graph building helper
   // Find all components connected to a starting pin
@@ -36,6 +69,18 @@ window.CircuitSimulator = (() => {
       if (visited.has(key)) continue;
       visited.add(key);
       pins.push(pin);
+
+      // If this pin is on a breadboard, queue all internally connected pins on the same breadboard
+      const part = placedParts.get(pin.dataset.part);
+      if (part && part.type === "breadboard") {
+        const siblings = getBreadboardConnectedPins(pin, part.element);
+        siblings.forEach(sib => {
+          const sibKey = `${sib.dataset.part}:${sib.dataset.pin}`;
+          if (!visited.has(sibKey)) {
+            queue.push(sib);
+          }
+        });
+      }
 
       // Find wires connected to this pin
       wires.forEach(wire => {

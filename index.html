@@ -155,6 +155,37 @@
               <input type="range" id="rangeLight" min="0" max="100" value="50">
             </div>
           </div>
+
+          <!-- Code option to program the Arduino Uno (shown when Arduino is selected) -->
+          <div id="arduinoCodePanel" class="arduino-code-panel" style="display: none;">
+            <div style="font-weight:700; font-size:11px; text-transform:uppercase; color:var(--muted); letter-spacing:0.5px; display:flex; justify-content:space-between; align-items:center; margin-bottom: 4px;">
+              <span>Arduino Program</span>
+              <div class="code-status" style="display:flex; align-items:center; gap:5px;">
+                <span id="codeStatusLed" class="status-indicator"></span>
+                <span id="codeStatusText">No code loaded</span>
+              </div>
+            </div>
+            <select id="codePresetSelect" style="margin-bottom: 8px;">
+              <option value="blink">Preset: Blink Pin 13 LED (Default)</option>
+              <option value="potentiometer">Preset: LED control via Potentiometer</option>
+              <option value="ultrasonic">Preset: Ultrasonic Monitor (Serial)</option>
+              <option value="custom">Preset: Custom Code Editor</option>
+            </select>
+            <textarea id="arduinoCodeArea" spellcheck="false" style="margin-bottom: 8px;">// Arduino Blink Sketch
+void setup() {
+  pinMode(13, OUTPUT);
+}
+
+void loop() {
+  digitalWrite(13, HIGH);
+  delay(1000);
+  digitalWrite(13, LOW);
+  delay(1000);
+}</textarea>
+            <button id="btnUploadCode" class="code-upload-btn" type="button">
+              Upload Code to Board
+            </button>
+          </div>
         </section>
       </aside>
     </div>

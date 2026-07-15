@@ -78,7 +78,6 @@ button {
   -webkit-backdrop-filter: blur(16px);
   border-color: var(--line);
   border-style: solid;
-  overflow-y: auto;
   box-shadow: var(--shadow);
 }
 
@@ -88,6 +87,9 @@ button {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
 }
 
 .inspector {
@@ -96,6 +98,7 @@ button {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  overflow-y: auto;
 }
 
 /* Branding */
@@ -213,6 +216,8 @@ button {
   flex-direction: column;
   gap: 22px;
   flex: 1;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 .category {
@@ -1406,3 +1411,287 @@ button {
     flex-direction: column;
   }
 }
+
+/* =========================================
+   Realistic Vertical Breadboard Styles
+   ========================================= */
+.part.breadboard {
+  background: #f1f5f9 !important;
+  border: 2px solid #cbd5e1 !important;
+  color: #1e293b !important;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+
+.part.breadboard .part-header {
+  background: #e2e8f0 !important;
+  color: #475569 !important;
+  border-bottom: 1px solid #cbd5e1 !important;
+}
+
+.breadboard-container {
+  display: flex;
+  background: #f8fafc;
+  padding: 14px 6px;
+  border-radius: 0 0 10px 10px;
+  user-select: none;
+  gap: 2px;
+  width: 280px;
+  height: 480px;
+  box-sizing: border-box;
+}
+
+.breadboard-rail {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: repeat(30, 1fr);
+  grid-gap: 3px 2px;
+  padding: 0 2px;
+  position: relative;
+}
+
+.breadboard-rail-left::before {
+  content: "";
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 24%;
+  width: 1px;
+  background: rgba(239, 68, 68, 0.35); /* red positive path */
+}
+
+.breadboard-rail-left::after {
+  content: "";
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 74%;
+  width: 1px;
+  background: rgba(59, 130, 246, 0.35); /* blue negative path */
+}
+
+.breadboard-rail-right::before {
+  content: "";
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 24%;
+  width: 1px;
+  background: rgba(239, 68, 68, 0.35); /* red positive path */
+}
+
+.breadboard-rail-right::after {
+  content: "";
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 74%;
+  width: 1px;
+  background: rgba(59, 130, 246, 0.35); /* blue negative path */
+}
+
+.breadboard-labels {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  font-family: 'Outfit', sans-serif;
+  font-size: 7px;
+  font-weight: 800;
+  color: #64748b;
+  width: 12px;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.breadboard-grid-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+}
+
+.breadboard-label-col {
+  display: flex;
+  justify-content: space-around;
+  width: 100%;
+  font-family: 'Outfit', sans-serif;
+  font-size: 8px;
+  font-weight: 800;
+  color: #64748b;
+  margin-bottom: 3px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.breadboard-label-col-bottom {
+  margin-top: 3px;
+  margin-bottom: 0;
+}
+
+.breadboard-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  grid-template-rows: repeat(30, 1fr);
+  grid-gap: 3px 2px;
+  padding: 0 1px;
+  flex: 1;
+}
+
+.breadboard-trench {
+  width: 6px;
+  background: #e2e8f0;
+  border-left: 1px solid #cbd5e1;
+  border-right: 1px solid #cbd5e1;
+  margin: 0 3px;
+  border-radius: 1px;
+}
+
+.breadboard-slot {
+  width: 10px;
+  height: 10px;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 2px;
+  cursor: pointer;
+  padding: 0;
+  box-sizing: border-box;
+  transition: all 0.1s ease;
+  display: block;
+}
+
+.breadboard-slot:hover {
+  background: var(--accent) !important;
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 6px var(--accent);
+  transform: scale(1.2);
+  z-index: 10;
+}
+
+.breadboard-slot.active-pin {
+  background: var(--accent-2) !important;
+  border-color: var(--accent-2) !important;
+  box-shadow: 0 0 6px var(--accent-2-glow);
+}
+
+.breadboard-slot.wired-pin {
+  background: #1e293b !important;
+  border-color: #64748b !important;
+}
+
+.breadboard-slot.rail-pos {
+  border-color: rgba(239, 68, 68, 0.3) !important;
+}
+
+.breadboard-slot.rail-neg {
+  border-color: rgba(59, 130, 246, 0.3) !important;
+}
+
+.breadboard-slot.rail-pos:hover {
+  background: #ef4444 !important;
+  border-color: #ef4444 !important;
+}
+
+.breadboard-slot.rail-neg:hover {
+  background: #3b82f6 !important;
+  border-color: #3b82f6 !important;
+}
+
+/* Arduino Code Uploader Styles */
+.arduino-code-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: rgba(13, 17, 23, 0.4);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 8px;
+}
+
+.arduino-code-panel select {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(13, 17, 23, 0.7);
+  color: var(--ink);
+  padding: 8px;
+  font-size: 12px;
+  outline: none;
+}
+
+.arduino-code-panel textarea {
+  width: 100%;
+  height: 120px;
+  background: #080f0c;
+  color: #a3ecc0;
+  border: 1px solid #142a1f;
+  border-radius: 6px;
+  padding: 8px;
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 11px;
+  resize: vertical;
+  line-height: 1.4;
+}
+
+.arduino-code-panel .code-upload-btn {
+  background: var(--accent-2);
+  color: #090d16;
+  border: none;
+  font-weight: 800;
+  border-radius: 6px;
+  padding: 10px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.arduino-code-panel .code-upload-btn:hover {
+  background: #ffe066;
+  box-shadow: 0 0 10px var(--accent-2-glow);
+}
+
+.arduino-code-panel .code-status {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.arduino-code-panel .code-status span.status-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+  display: inline-block;
+}
+
+.arduino-code-panel .code-status span.status-indicator.success {
+  background: var(--ok);
+  box-shadow: 0 0 6px var(--ok-glow);
+}
+
+.arduino-code-panel .code-status span.status-indicator.uploading {
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent-glow);
+  animation: pulseUploading 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes pulseUploading {
+  from { opacity: 0.4; }
+  to { opacity: 1; }
+}
+
+.board-programming-active .chip {
+  animation: chipUploadGlow 0.3s ease-in-out infinite alternate;
+}
+
+@keyframes chipUploadGlow {
+  from { border-color: #21262d; box-shadow: 0 0 2px var(--accent-2-glow); }
+  to { border-color: var(--accent-2); box-shadow: 0 0 12px var(--accent-2); }
+}
+
