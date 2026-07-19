@@ -41,6 +41,14 @@
   const valDistance = document.querySelector("#valDistance");
   const valLight = document.querySelector("#valLight");
 
+  // Arduino Code Editor Panel DOMs
+  const arduinoCodePanel = document.querySelector("#arduinoCodePanel");
+  const codePresetSelect = document.querySelector("#codePresetSelect");
+  const arduinoCodeArea = document.querySelector("#arduinoCodeArea");
+  const btnUploadCode = document.querySelector("#btnUploadCode");
+  const codeStatusLed = document.querySelector("#codeStatusLed");
+  const codeStatusText = document.querySelector("#codeStatusText");
+
   // State Variables
   let selectedPart = null;
   let activeTool = "select";
@@ -233,6 +241,182 @@
     shiftregister: { className: "ic", pins: [["DATA", "left", 18], ["CLK", "left", 42], ["LATCH", "left", 66], ["VCC", "right", 18], ["Q0", "right", 42], ["Q1", "right", 66], ["GND", "bottom", 56]], visual: "ic", defaultX: 590, defaultY: 290 }
   };
 
+  // --- Arduino Code Editor ---
+
+  const presetCodes = {
+    blink: `// Arduino Blink Sketch
+void setup() {
+  pinMode(13, OUTPUT);
+}
+
+void loop() {
+  digitalWrite(13, HIGH);
+  delay(1000);
+  digitalWrite(13, LOW);
+  delay(1000);
+}`,
+    potentiometer: `// LED Brightness via Potentiometer
+void setup() {
+  pinMode(9, OUTPUT);
+  Serial.begin(9600);
+}
+
+void loop() {
+  int val = analogRead(A0);
+  int brightness = map(val, 0, 1023, 0, 255);
+  analogWrite(9, brightness);
+  Serial.print("Potentiometer: ");
+  Serial.println(val);
+  delay(100);
+}`,
+    ultrasonic: `// Ultrasonic Distance Monitor
+void setup() {
+  Serial.begin(9600);
+  pinMode(9, OUTPUT);
+  pinMode(8, INPUT);
+}
+
+void loop() {
+  digitalWrite(9, LOW);
+  delayMicroseconds(2);
+  digitalWrite(9, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(9, LOW);
+  long duration = pulseIn(8, HIGH);
+  float distance = duration * 0.034 / 2;
+  Serial.print("Distance: ");
+  Serial.print(distance);
+  Serial.println(" cm");
+  delay(500);
+}`,
+    custom: `// Write your Arduino code here
+void setup() {
+  pinMode(13, OUTPUT);
+  Serial.begin(9600);
+}
+
+void loop() {
+  digitalWrite(13, HIGH);
+  delay(500);
+  digitalWrite(13, LOW);
+  delay(500);
+  Serial.println("Running...");
+}`
+  };
+
+  // Show/hide the code panel based on whether an Arduino Uno is on the workspace
+  function updateArduinoCodePanelVisibility() {
+    const hasArduino = [...placedParts.values()].some(p => p.type === "arduino");
+    if (arduinoCodePanel) {
+      arduinoCodePanel.style.display = hasArduino ? "block" : "none";
+    }
+  }
+
+  // Parse a simplified subset of Arduino C to extract simulation behavior
+  function parseArduinoCode(code) {
+    const parsed = {
+      program: "custom",
+      loopDelayMs: 1000,
+      usesD13: false,
+      usesD9: false,
+      hasSerial: /Serial\s*\.\s*begin/.test(code),
+      hasAnalogRead: /analogRead/.test(code),
+      hasAnalogWrite: /analogWrite/.test(code),
+      hasUltrasonic: /pulseIn|HC-SR04|ECHO|ultrasonic/i.test(code),
+      hasServo: /Servo|servo\.write/i.test(code),
+      serialLines: [],
+    };
+
+    // Extract loop() body (everything between the last void loop() { ... })
+    const loopMatch = code.match(/void\s+loop\s*\(\s*\)\s*\{([\s\S]*)/);
+    const loopBody = loopMatch ? loopMatch[1] : code;
+
+    // Sum all delay() calls to get total loop period
+    const delayMatches = [...loopBody.matchAll(/\bdelay\s*\(\s*(\d+)\s*\)/g)];
+    const totalDelay = delayMatches.reduce((sum, m) => sum + parseInt(m[1], 10), 0);
+    if (totalDelay > 0) parsed.loopDelayMs = Math.max(100, totalDelay);
+
+    // Detect which digital pins are written
+    const digRe = /\bdigitalWrite\s*\(\s*(\d+)\s*,\s*(HIGH|LOW|1|0)\s*\)/g;
+    let m;
+    while ((m = digRe.exec(loopBody)) !== null) {
+      const pin = parseInt(m[1], 10);
+      if (pin === 13) parsed.usesD13 = true;
+      if (pin === 9) parsed.usesD9 = true;
+    }
+
+    // Detect analogWrite pin
+    const anaRe = /\banalogWrite\s*\(\s*(\d+)\s*,/g;
+    while ((m = anaRe.exec(loopBody)) !== null) {
+      const pin = parseInt(m[1], 10);
+      if (pin === 9) parsed.usesD9 = true;
+    }
+
+    // Extract any quoted Serial.print strings
+    const serialRe = /\bSerial\.print(?:ln)?\s*\(\s*"([^"]*)"\s*\)/g;
+    while ((m = serialRe.exec(loopBody)) !== null) {
+      parsed.serialLines.push(m[1]);
+    }
+    // Also pick up variable-based prints as generic labels
+    const serialVarRe = /\bSerial\.println?\s*\(\s*([a-zA-Z_]\w*)\s*\)/g;
+    while ((m = serialVarRe.exec(loopBody)) !== null) {
+      parsed.serialLines.push(`<${m[1]}>`);
+    }
+
+    // Infer dominant program type from detected patterns
+    if (parsed.hasUltrasonic) {
+      parsed.program = "ultrasonic";
+    } else if (parsed.hasServo || (parsed.usesD9 && parsed.hasAnalogWrite)) {
+      parsed.program = "potentiometer"; // servo-like PWM
+    } else if (parsed.hasAnalogRead || parsed.hasAnalogWrite) {
+      parsed.program = "potentiometer";
+    } else if (parsed.usesD13) {
+      parsed.program = "blink";
+    }
+
+    return parsed;
+  }
+
+  // Upload parsed code into the simulator
+  function uploadArduinoCode() {
+    const code = arduinoCodeArea.value.trim();
+    if (!code) {
+      codeStatusText.textContent = "Paste some code first";
+      return;
+    }
+
+    codeStatusLed.className = "status-indicator uploading";
+    codeStatusText.textContent = "Uploading…";
+
+    // Animate board chip glow
+    const boards = document.querySelectorAll('[data-type="arduino"]');
+    boards.forEach(b => b.classList.add("board-programming-active"));
+
+    setTimeout(() => {
+      const parsed = parseArduinoCode(code);
+      sim.state.arduinoProgram = parsed.program;
+      sim.state.customCode = parsed;
+
+      boards.forEach(b => b.classList.remove("board-programming-active"));
+      codeStatusLed.className = "status-indicator success";
+      codeStatusText.textContent = `Uploaded · ${parsed.program} mode`;
+
+      const modeLabel = {
+        blink: "Blink (D13 toggle)",
+        potentiometer: "Analog / PWM",
+        ultrasonic: "Ultrasonic distance",
+        custom: "Custom program",
+      }[parsed.program] || parsed.program;
+
+      appendChatMessage("assistant",
+        `📤 <strong>Code uploaded!</strong> Detected mode: <em>${modeLabel}</em>. ` +
+        `Loop period: <strong>${parsed.loopDelayMs} ms</strong>. ` +
+        (parsed.hasSerial ? `Open the <em>Serial</em> tab to see output. ` : "") +
+        `Press <em>Run Simulation</em> to execute.`
+      );
+    }, 700);
+  }
+
   // Render Component Catalog Library
   function renderLibrary(filter = "") {
     library.innerHTML = "";
@@ -338,6 +522,7 @@
     selectPart(part);
     refreshWires();
     evaluateCircuit();
+    updateArduinoCodePanelVisibility();
     return part;
   }
 
@@ -572,6 +757,7 @@
     benchHint.textContent = "Component removed.";
     refreshWires();
     evaluateCircuit();
+    updateArduinoCodePanelVisibility();
   }
 
   function getPinProfile(pinName) {
@@ -1199,7 +1385,7 @@
   // Keyboard Shortcuts (Delete to remove, Esc to cancel action/modals)
   document.addEventListener("keydown", event => {
     if (event.key === "Delete" || event.key === "Backspace") {
-      if (document.activeElement === mentorQuestion || document.activeElement === document.querySelector("#componentSearch") || document.activeElement === customSpecInput) return;
+      if (document.activeElement === mentorQuestion || document.activeElement === document.querySelector("#componentSearch") || document.activeElement === customSpecInput || document.activeElement === arduinoCodeArea) return;
       removeSelectedPart();
     }
 
@@ -1221,6 +1407,30 @@
       benchHint.textContent = "Action cancelled.";
     }
   });
+
+  // --- Arduino Code Editor Event Bindings ---
+  if (codePresetSelect) {
+    codePresetSelect.addEventListener("change", () => {
+      const val = codePresetSelect.value;
+      arduinoCodeArea.value = presetCodes[val] || presetCodes.custom;
+      codeStatusLed.className = "status-indicator";
+      codeStatusText.textContent = "Code changed — upload to apply";
+    });
+  }
+
+  if (btnUploadCode) {
+    btnUploadCode.addEventListener("click", uploadArduinoCode);
+  }
+
+  // Keyboard shortcut: Ctrl+Enter inside textarea uploads code
+  if (arduinoCodeArea) {
+    arduinoCodeArea.addEventListener("keydown", event => {
+      if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+        event.preventDefault();
+        uploadArduinoCode();
+      }
+    });
+  }
 
   // Bind Interactive Sliders (Ultrasonic Range & LDR ambient light)
   if (rangeDistance) {
@@ -1293,6 +1503,7 @@
   setTool("wire");
   renderInstrumentContent("multimeter");
   evaluateCircuit();
+  updateArduinoCodePanelVisibility();
   
   appendChatMessage("assistant", "🤖 **Mentor**: Welcome to Circuit Mentor! Drag components from the left shelf onto the workspace. Use the **WIRE** tool to link pins. Run the simulation to see voltages and waveforms update.");
 })();

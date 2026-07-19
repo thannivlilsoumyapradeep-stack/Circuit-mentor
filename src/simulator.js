@@ -159,8 +159,11 @@ window.CircuitSimulator = (() => {
     const pinD9 = findBoardPin("D9");
     const pinA0 = findBoardPin("A0") || findBoardPin("GPIO34");
 
-    // Simulate blink code on Pin D13 (toggles every 1.5 seconds)
-    const d13High = (Math.floor(state.time / 1500) % 2) === 0;
+    // Simulate D13 toggle — use custom code period if uploaded, otherwise default 1.5s
+    const blinkHalf = (state.customCode && state.customCode.loopDelayMs)
+      ? Math.max(50, Math.floor(state.customCode.loopDelayMs / 2))
+      : 1500;
+    const d13High = (Math.floor(state.time / blinkHalf) % 2) === 0;
     const vD13 = d13High ? 5.0 : 0.0;
 
     // Simulate PWM signal on D9 (servo sweep or pulse)
@@ -319,11 +322,27 @@ window.CircuitSimulator = (() => {
       }
     }
 
-    // 5. Build Serial Logs (every 1 second)
-    const shouldPrintSerial = (Math.floor(state.time / 1000) % 2) === 0 && (Math.floor((state.time - timeStepMs) / 1000) % 2) !== 0;
+    // 5. Build Serial Logs (every 1 second, or at custom code loop period)
+    const serialPeriod = (state.customCode && state.customCode.loopDelayMs)
+      ? Math.max(200, state.customCode.loopDelayMs)
+      : 1000;
+    const shouldPrintSerial = (Math.floor(state.time / serialPeriod) % 2) === 0
+      && (Math.floor((state.time - timeStepMs) / serialPeriod) % 2) !== 0;
+
     if (shouldPrintSerial) {
-      if (isSensorActive) {
-        state.serialOutput.push(`distance_cm=${state.inputs.ultrasonicDistance}`);
+      // If custom code has explicit serial strings, prefer them
+      const customLines = state.customCode && state.customCode.serialLines;
+      if (customLines && customLines.length > 0) {
+        const lineIndex = Math.floor(state.time / serialPeriod) % customLines.length;
+        let line = customLines[lineIndex];
+        // Substitute variable placeholders with live values
+        line = line
+          .replace(/<val>|<brightness>|<analogVal>/gi, Math.round(1023 * state.inputs.potentiometerWiper))
+          .replace(/<distance>/gi, state.inputs.ultrasonicDistance)
+          .replace(/<ldr>/gi, Math.round(1023 * (state.inputs.ldrLightLevel / 100)));
+        state.serialOutput.push(line);
+      } else if (isSensorActive) {
+        state.serialOutput.push(`Distance: ${state.inputs.ultrasonicDistance} cm`);
       } else {
         const a0Connected = pinA0 ? findConnectedPins(pinA0, placedParts, wires) : [];
         const ldrFound = a0Connected.some(p => placedParts.get(p.dataset.part)?.type === "ldr");
@@ -337,9 +356,9 @@ window.CircuitSimulator = (() => {
           state.serialOutput.push(`led_state=${state.ledState === "glowing" ? "ON" : "OFF"}`);
         }
       }
-      
-      // Limit serial array size
-      if (state.serialOutput.length > 5) {
+
+      // Keep serial log to last 6 lines
+      if (state.serialOutput.length > 6) {
         state.serialOutput.shift();
       }
     }
