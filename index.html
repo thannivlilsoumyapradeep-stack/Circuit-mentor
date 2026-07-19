@@ -72,9 +72,55 @@
             <button id="zoomOut" class="icon-button" type="button" title="Zoom Out">-</button>
             <output id="zoomValue">100%</output>
             <button id="zoomIn" class="icon-button" type="button" title="Zoom In">+</button>
+            <button id="codeEditorBtn" class="icon-button code-editor-toolbar-btn" type="button" title="Arduino Code Editor">⌨ CODE</button>
             <button id="runSimulation" class="run-button" type="button">Run Simulation</button>
           </div>
         </header>
+
+        <!-- Arduino Code Editor Floating Drawer -->
+        <div id="codeEditorDrawer" class="code-editor-drawer hidden" role="dialog" aria-modal="true" aria-label="Arduino Code Editor">
+          <div class="code-editor-drawer-inner">
+            <div class="code-editor-drawer-head">
+              <div style="display:flex; align-items:center; gap:10px;">
+                <span style="font-size:16px;">⌨</span>
+                <div>
+                  <h3 style="margin:0; font-size:14px; font-weight:700; color:var(--ink);">Arduino Code Editor</h3>
+                  <p style="margin:0; font-size:11px; color:var(--muted);">Write code for Arduino Uno · Upload to drive the simulation</p>
+                </div>
+              </div>
+              <div style="display:flex; align-items:center; gap:10px;">
+                <div style="display:flex; align-items:center; gap:6px; font-size:11px; color:var(--muted);">
+                  <span id="codeStatusLed" style="width:8px;height:8px;border-radius:50%;background:var(--muted);display:inline-block; flex-shrink:0;"></span>
+                  <span id="codeStatusText">No code loaded</span>
+                </div>
+                <button id="codeEditorClose" class="icon-button" type="button" title="Close">✕</button>
+              </div>
+            </div>
+            <div class="code-editor-drawer-body">
+              <select id="codePresetSelect" class="code-preset-select">
+                <option value="blink">📟 Preset: Blink Pin 13 LED</option>
+                <option value="potentiometer">🎛 Preset: LED brightness via Potentiometer</option>
+                <option value="ultrasonic">📡 Preset: Ultrasonic Distance Monitor</option>
+                <option value="custom">✏️ Custom — write your own code</option>
+              </select>
+              <textarea id="arduinoCodeArea" spellcheck="false" class="code-textarea">// Arduino Blink Sketch
+void setup() {
+  pinMode(13, OUTPUT);
+}
+
+void loop() {
+  digitalWrite(13, HIGH);
+  delay(1000);
+  digitalWrite(13, LOW);
+  delay(1000);
+}</textarea>
+              <div class="code-editor-footer">
+                <span style="font-size:10px; color:var(--muted);">Ctrl+Enter to upload · Code drives simulation timing &amp; serial output</span>
+                <button id="btnUploadCode" type="button" class="code-upload-btn-main">⬆ Upload to Board</button>
+              </div>
+            </div>
+          </div>
+        </div>
 
         <!-- Sandbox Circuit Canvas -->
         <section class="bench-shell" aria-label="Circuit workbench">
@@ -156,36 +202,6 @@
             </div>
           </div>
 
-          <!-- Code option to program the Arduino Uno (shown when Arduino is selected) -->
-          <div id="arduinoCodePanel" class="arduino-code-panel" style="display: none;">
-            <div style="font-weight:700; font-size:11px; text-transform:uppercase; color:var(--muted); letter-spacing:0.5px; display:flex; justify-content:space-between; align-items:center; margin-bottom: 4px;">
-              <span>Arduino Program</span>
-              <div class="code-status" style="display:flex; align-items:center; gap:5px;">
-                <span id="codeStatusLed" class="status-indicator"></span>
-                <span id="codeStatusText">No code loaded</span>
-              </div>
-            </div>
-            <select id="codePresetSelect" style="margin-bottom: 8px;">
-              <option value="blink">Preset: Blink Pin 13 LED (Default)</option>
-              <option value="potentiometer">Preset: LED control via Potentiometer</option>
-              <option value="ultrasonic">Preset: Ultrasonic Monitor (Serial)</option>
-              <option value="custom">Preset: Custom Code Editor</option>
-            </select>
-            <textarea id="arduinoCodeArea" spellcheck="false" style="margin-bottom: 8px;">// Arduino Blink Sketch
-void setup() {
-  pinMode(13, OUTPUT);
-}
-
-void loop() {
-  digitalWrite(13, HIGH);
-  delay(1000);
-  digitalWrite(13, LOW);
-  delay(1000);
-}</textarea>
-            <button id="btnUploadCode" class="code-upload-btn" type="button">
-              Upload Code to Board
-            </button>
-          </div>
         </section>
       </aside>
     </div>

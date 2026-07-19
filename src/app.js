@@ -41,8 +41,10 @@
   const valDistance = document.querySelector("#valDistance");
   const valLight = document.querySelector("#valLight");
 
-  // Arduino Code Editor Panel DOMs
-  const arduinoCodePanel = document.querySelector("#arduinoCodePanel");
+  // Arduino Code Editor Floating Drawer DOMs
+  const codeEditorBtn = document.querySelector("#codeEditorBtn");
+  const codeEditorDrawer = document.querySelector("#codeEditorDrawer");
+  const codeEditorClose = document.querySelector("#codeEditorClose");
   const codePresetSelect = document.querySelector("#codePresetSelect");
   const arduinoCodeArea = document.querySelector("#arduinoCodeArea");
   const btnUploadCode = document.querySelector("#btnUploadCode");
@@ -304,13 +306,8 @@ void loop() {
 }`
   };
 
-  // Show/hide the code panel based on whether an Arduino Uno is on the workspace
-  function updateArduinoCodePanelVisibility() {
-    const hasArduino = [...placedParts.values()].some(p => p.type === "arduino");
-    if (arduinoCodePanel) {
-      arduinoCodePanel.style.display = hasArduino ? "block" : "none";
-    }
-  }
+  // No-op kept for call-site compatibility; Code tab is always visible in the instrument panel
+  function updateArduinoCodePanelVisibility() {}
 
   // Parse a simplified subset of Arduino C to extract simulation behavior
   function parseArduinoCode(code) {
@@ -1390,6 +1387,10 @@ void loop() {
     }
 
     if (event.key === "Escape") {
+      if (codeEditorDrawer && !codeEditorDrawer.classList.contains("hidden")) {
+        closeCodeEditor();
+        return;
+      }
       if (!componentModal.classList.contains("hidden")) {
         closeComponentModal();
         return;
@@ -1408,13 +1409,39 @@ void loop() {
     }
   });
 
-  // --- Arduino Code Editor Event Bindings ---
+  // --- Arduino Code Editor Floating Drawer Bindings ---
+  function openCodeEditor() {
+    if (codeEditorDrawer) {
+      codeEditorDrawer.classList.remove("hidden");
+      if (codeEditorBtn) codeEditorBtn.classList.add("editor-open");
+      arduinoCodeArea?.focus();
+    }
+  }
+
+  function closeCodeEditor() {
+    if (codeEditorDrawer) {
+      codeEditorDrawer.classList.add("hidden");
+      if (codeEditorBtn) codeEditorBtn.classList.remove("editor-open");
+    }
+  }
+
+  if (codeEditorBtn) {
+    codeEditorBtn.addEventListener("click", () => {
+      const isOpen = !codeEditorDrawer.classList.contains("hidden");
+      isOpen ? closeCodeEditor() : openCodeEditor();
+    });
+  }
+
+  if (codeEditorClose) {
+    codeEditorClose.addEventListener("click", closeCodeEditor);
+  }
+
   if (codePresetSelect) {
     codePresetSelect.addEventListener("change", () => {
       const val = codePresetSelect.value;
       arduinoCodeArea.value = presetCodes[val] || presetCodes.custom;
-      codeStatusLed.className = "status-indicator";
-      codeStatusText.textContent = "Code changed — upload to apply";
+      if (codeStatusLed) codeStatusLed.style.background = "var(--muted)";
+      if (codeStatusText) codeStatusText.textContent = "Code changed — upload to apply";
     });
   }
 

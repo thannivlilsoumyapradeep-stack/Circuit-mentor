@@ -1,4 +1,4 @@
-const CACHE_NAME = "circuit-mentor-cache-v1";
+const CACHE_NAME = "circuit-mentor-cache-v2";
 const ASSETS = [
   "./",
   "./index.html",
