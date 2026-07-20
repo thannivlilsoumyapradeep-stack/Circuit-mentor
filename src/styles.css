@@ -21,6 +21,40 @@
   font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
+/* ── Light Mode Theme ── */
+.light-mode {
+  --bg: #f0f4f8;
+  --panel: rgba(255, 255, 255, 0.92);
+  --panel-strong: #ffffff;
+  --ink: #1c2128;
+  --muted: #57606a;
+  --line: #d0d7de;
+  --accent: #0969da;
+  --accent-glow: rgba(9, 105, 218, 0.2);
+  --accent-2: #bf8700;
+  --accent-2-glow: rgba(191, 135, 0, 0.2);
+  --danger: #cf222e;
+  --danger-glow: rgba(207, 34, 46, 0.2);
+  --ok: #1a7f37;
+  --ok-glow: rgba(26, 127, 55, 0.2);
+  --warn: #9a6700;
+  --board: #1a7a56;
+  --chip: #eaeef2;
+  --shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.12);
+}
+.light-mode body {
+  background: var(--bg);
+}
+.light-mode .bench-grid {
+  background-color: #e8ecf1;
+  background-image:
+    radial-gradient(rgba(9, 105, 218, 0.08) 1.2px, transparent 1.2px),
+    radial-gradient(rgba(0,0,0,0.04) 1px, transparent 1px);
+}
+.light-mode .bench-shell {
+  background: #dce2ea;
+}
+
 * {
   box-sizing: border-box;
   scrollbar-width: thin;
@@ -1597,6 +1631,31 @@ button {
   border-color: #3b82f6 !important;
 }
 
+/* ── Toolbar divider ── */
+.toolbar-divider {
+  width: 1px;
+  height: 24px;
+  background: var(--line);
+  margin: 0 2px;
+  flex-shrink: 0;
+}
+
+/* ── Save / Undo / Redo toolbar buttons ── */
+.save-toolbar-btn {
+  background: rgba(52,211,153,0.1);
+  border-color: rgba(52,211,153,0.35) !important;
+  color: var(--ok) !important;
+  font-weight: 700;
+}
+.save-toolbar-btn:hover {
+  background: rgba(52,211,153,0.18);
+  border-color: var(--ok) !important;
+}
+.save-toolbar-btn.saved-flash {
+  background: rgba(52,211,153,0.3);
+  color: var(--ok) !important;
+}
+
 /* ── Arduino Code Editor Toolbar Button ── */
 .code-editor-toolbar-btn {
   background: linear-gradient(135deg, rgba(255,200,55,0.15), rgba(255,200,55,0.05));
@@ -1672,26 +1731,72 @@ button {
 .code-preset-select:focus {
   border-color: var(--accent-2);
 }
-.code-textarea {
+/* ── Code Editor Wrap (highlight overlay container) ── */
+.code-editor-wrap {
+  position: relative;
   flex: 1;
-  min-height: 320px;
-  background: #060c08;
-  color: #a3ecc0;
-  border: 1.5px solid #142a1f;
+  min-height: 0;
   border-radius: 8px;
+  overflow: hidden;
+  background: #060c08;
+  border: 1.5px solid #142a1f;
+  box-shadow: inset 0 0 16px rgba(0,0,0,0.6);
+}
+.code-editor-wrap:focus-within {
+  border-color: rgba(52,211,153,0.5);
+  box-shadow: inset 0 0 16px rgba(0,0,0,0.6), 0 0 0 2px rgba(52,211,153,0.1);
+}
+
+/* Syntax highlight layer — sits behind transparent textarea */
+.code-highlight-overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  margin: 0;
+  padding: 14px;
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+  overflow: hidden;
+  pointer-events: none;
+  border: none;
+  background: transparent;
+  color: #a3ecc0;
+  tab-size: 2;
+  border-radius: 8px;
+}
+
+/* Syntax highlight token colours */
+.hl-keyword  { color: #ff7b72; }
+.hl-builtin  { color: #79c0ff; }
+.hl-comment  { color: #8b949e; font-style: italic; }
+.hl-string   { color: #a5d6ff; }
+.hl-number   { color: #f2cc60; }
+
+.code-textarea {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-height: 320px;
+  background: transparent;
+  color: transparent;
+  caret-color: #a3ecc0;
+  border: none;
+  border-radius: 0;
   padding: 14px;
   font-family: "JetBrains Mono", Consolas, monospace;
   font-size: 12px;
   resize: vertical;
   line-height: 1.6;
-  width: 100%;
   box-sizing: border-box;
-  box-shadow: inset 0 0 16px rgba(0,0,0,0.6);
+  box-shadow: none;
   outline: none;
+  tab-size: 2;
 }
 .code-textarea:focus {
-  border-color: rgba(52,211,153,0.5);
-  box-shadow: inset 0 0 16px rgba(0,0,0,0.6), 0 0 0 2px rgba(52,211,153,0.1);
+  border-color: transparent;
+  box-shadow: none;
 }
 .code-editor-footer {
   display: flex;

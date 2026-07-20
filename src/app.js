@@ -51,6 +51,12 @@
   const codeStatusLed = document.querySelector("#codeStatusLed");
   const codeStatusText = document.querySelector("#codeStatusText");
 
+  // Toolbar action DOMs
+  const undoBtn = document.querySelector("#undoBtn");
+  const redoBtn = document.querySelector("#redoBtn");
+  const saveBtn = document.querySelector("#saveBtn");
+  const themeToggle = document.querySelector("#themeToggle");
+
   // State Variables
   let selectedPart = null;
   let activeTool = "select";
@@ -67,6 +73,13 @@
   let deferredPrompt = null; // PWA installation prompt
   const placedParts = new Map();
   const wires = [];
+
+  // --- Undo / Redo history ---
+  const history = [];
+  let historyIndex = -1;
+  let _restoring = false; // guard: skip pushHistory during restoreCircuit
+  const SAVE_KEY = "circuit-mentor-v1";
+  const THEME_KEY = "circuit-mentor-theme";
 
   // Component definition groups matching the original application specs
   const componentGroups = [
@@ -114,8 +127,10 @@
       title: "Output Devices",
       items: [
         { type: "servo", name: "Servo Motor", hint: "PWM position control", icon: "SRV" },
+        { type: "motor", name: "DC Motor", hint: "Spins with applied voltage", icon: "MTR" },
         { type: "buzzer", name: "Buzzer", hint: "Simple sound output", icon: "BUZ" },
-        { type: "lcd", name: "LCD Display", hint: "I2C text display", icon: "LCD" }
+        { type: "lcd", name: "LCD Display", hint: "I2C text display", icon: "LCD" },
+        { type: "oled", name: "OLED Display", hint: "128×64 I2C display", icon: "OLED" }
       ]
     }
   ];
@@ -185,6 +200,18 @@
       options: ["1 kohm", "10 kohm", "50 kohm", "100 kohm"],
       defaultSpec: "10 kohm"
     },
+    motor: {
+      title: "Choose DC Motor",
+      unit: "type",
+      options: ["3V DC hobby motor", "5V DC hobby motor", "12V DC motor", "Geared DC motor"],
+      defaultSpec: "5V DC hobby motor"
+    },
+    oled: {
+      title: "Choose OLED Display",
+      unit: "type",
+      options: ['0.96" 128×64 I2C', '1.3" 128×64 I2C', '0.91" 128×32 I2C'],
+      defaultSpec: '0.96" 128×64 I2C'
+    },
     ic555: {
       title: "Choose 555 Timer IC",
       unit: "package",
@@ -236,6 +263,8 @@
     servo: { className: "output", pins: [["+", "left", 20], ["SIG", "left", 48], ["-", "left", 76]], visual: "output", defaultX: 680, defaultY: 300 },
     buzzer: { className: "output", pins: [["+", "left", 44], ["-", "right", 44]], visual: "output", defaultX: 650, defaultY: 210 },
     lcd: { className: "output", pins: [["+", "left", 18], ["-", "left", 42], ["SDA", "right", 30], ["SCL", "right", 58]], visual: "output", defaultX: 650, defaultY: 110 },
+    motor: { className: "output", pins: [["+", "left", 34], ["-", "right", 34]], visual: "output", defaultX: 700, defaultY: 220 },
+    oled: { className: "output", pins: [["+", "left", 16], ["-", "left", 40], ["SDA", "right", 28], ["SCL", "right", 52]], visual: "output", defaultX: 720, defaultY: 160 },
     ic555: { className: "ic", pins: [["GND", "left", 16], ["TRIG", "left", 38], ["OUT", "left", 60], ["RESET", "left", 82], ["VCC", "right", 16], ["DIS", "right", 38], ["THR", "right", 60], ["CTRL", "right", 82]], visual: "ic", defaultX: 530, defaultY: 190 },
     opamp: { className: "ic", pins: [["IN+", "left", 22], ["IN-", "left", 52], ["V-", "left", 82], ["OUT", "right", 34], ["V+", "right", 70]], visual: "ic", defaultX: 545, defaultY: 215 },
     logicic: { className: "ic", pins: [["A", "left", 20], ["B", "left", 48], ["Y", "right", 34], ["VCC", "right", 62], ["GND", "bottom", 56]], visual: "ic", defaultX: 560, defaultY: 240 },
@@ -291,6 +320,37 @@ void loop() {
   Serial.println(" cm");
   delay(500);
 }`,
+    servo: `// Servo Sweep
+#include <Servo.h>
+Servo myServo;
+
+void setup() {
+  myServo.attach(9);
+  Serial.begin(9600);
+}
+
+void loop() {
+  for (int pos = 0; pos <= 180; pos++) {
+    myServo.write(pos);
+    delay(15);
+  }
+  for (int pos = 180; pos >= 0; pos--) {
+    myServo.write(pos);
+    delay(15);
+  }
+  Serial.println("Sweep done");
+}`,
+    analog: `// LED Fade with analogWrite
+void setup() {
+  pinMode(9, OUTPUT);
+}
+
+void loop() {
+  analogWrite(9, 200);
+  delay(500);
+  analogWrite(9, 50);
+  delay(500);
+}`,
     custom: `// Write your Arduino code here
 void setup() {
   pinMode(13, OUTPUT);
@@ -306,8 +366,106 @@ void loop() {
 }`
   };
 
-  // No-op kept for call-site compatibility; Code tab is always visible in the instrument panel
+  // No-op kept for call-site compatibility
   function updateArduinoCodePanelVisibility() {}
+
+  // ═══════════════════════════════════════════════════════
+  // SAVE / LOAD CIRCUIT
+  // ═══════════════════════════════════════════════════════
+  function getCircuitSnapshot() {
+    const parts = [];
+    for (const [id, part] of placedParts.entries()) {
+      const el = part.element;
+      parts.push({ id, type: part.type, x: parseInt(el.style.left), y: parseInt(el.style.top), spec: part.spec });
+    }
+    const wireData = wires.map(w => ({
+      fromPartId: w.from.dataset.part, fromPin: w.from.dataset.pin,
+      toPartId: w.to.dataset.part,   toPin:   w.to.dataset.pin,
+      color: w.color
+    }));
+    return { parts, wires: wireData };
+  }
+
+  function saveCircuit() {
+    if (_restoring) return;
+    try { localStorage.setItem(SAVE_KEY, JSON.stringify(getCircuitSnapshot())); } catch (e) {}
+  }
+
+  function restoreCircuit(snapshot) {
+    _restoring = true;
+    Array.from(placedParts.values()).forEach(p => p.element.remove());
+    placedParts.clear();
+    wires.length = 0;
+    partCounter = 0;
+    wireLayer.innerHTML = "";
+    const idMap = {};
+    for (const p of (snapshot.parts || [])) {
+      const el = addPart(p.type, p.x, p.y, p.spec);
+      if (el) idMap[p.id] = el.dataset.id;
+    }
+    for (const w of (snapshot.wires || [])) {
+      const nfId = idMap[w.fromPartId], ntId = idMap[w.toPartId];
+      if (!nfId || !ntId) continue;
+      const fe = document.querySelector(`[data-id="${nfId}"] .pin[data-pin="${w.fromPin}"]`);
+      const te = document.querySelector(`[data-id="${ntId}"] .pin[data-pin="${w.toPin}"]`);
+      if (fe && te) wires.push({ from: fe, to: te, color: w.color });
+    }
+    _restoring = false;
+    refreshWires();
+    evaluateCircuit();
+  }
+
+  function loadCircuitFromStorage() {
+    try {
+      const raw = localStorage.getItem(SAVE_KEY);
+      if (!raw) return false;
+      restoreCircuit(JSON.parse(raw));
+      return true;
+    } catch (e) { return false; }
+  }
+
+  // ═══════════════════════════════════════════════════════
+  // UNDO / REDO
+  // ═══════════════════════════════════════════════════════
+  function pushHistory() {
+    if (_restoring) return;
+    history.splice(historyIndex + 1);
+    history.push(getCircuitSnapshot());
+    if (history.length > 50) history.shift();
+    historyIndex = history.length - 1;
+  }
+
+  function undo() {
+    if (historyIndex <= 0) return;
+    historyIndex--;
+    restoreCircuit(history[historyIndex]);
+    saveCircuit();
+  }
+
+  function redo() {
+    if (historyIndex >= history.length - 1) return;
+    historyIndex++;
+    restoreCircuit(history[historyIndex]);
+    saveCircuit();
+  }
+
+  // ═══════════════════════════════════════════════════════
+  // SYNTAX HIGHLIGHTING
+  // ═══════════════════════════════════════════════════════
+  function highlightArduinoCode(code) {
+    const esc = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return esc.replace(
+      /(\/\/[^\n]*)|(\/\*[\s\S]*?\*\/)|(\"[^\"]*\"|\'[^\']*\')|(\b(?:void|int|float|long|bool|boolean|char|byte|unsigned|return|if|else|for|while|do|break|continue|HIGH|LOW|INPUT|OUTPUT|INPUT_PULLUP|true|false|const|new|include|define)\b)|(\b(?:pinMode|digitalWrite|digitalRead|analogWrite|analogRead|delay|delayMicroseconds|millis|micros|map|constrain|pulseIn|Serial|loop|setup|Servo|attach|write|begin|print|println)\b)|(\b\d+(?:\.\d+)?\b)/g,
+      (m, comment, block, str, kw, builtin, num) => {
+        if (comment || block) return `<span class="hl-comment">${m}</span>`;
+        if (str) return `<span class="hl-string">${m}</span>`;
+        if (kw) return `<span class="hl-keyword">${m}</span>`;
+        if (builtin) return `<span class="hl-builtin">${m}</span>`;
+        if (num !== undefined) return `<span class="hl-number">${m}</span>`;
+        return m;
+      }
+    );
+  }
 
   // Parse a simplified subset of Arduino C to extract simulation behavior
   function parseArduinoCode(code) {
@@ -316,6 +474,7 @@ void loop() {
       loopDelayMs: 1000,
       usesD13: false,
       usesD9: false,
+      d9Duty: null,        // analogWrite(9, VALUE) — 0-255, or null if not set
       hasSerial: /Serial\s*\.\s*begin/.test(code),
       hasAnalogRead: /analogRead/.test(code),
       hasAnalogWrite: /analogWrite/.test(code),
@@ -342,11 +501,17 @@ void loop() {
       if (pin === 9) parsed.usesD9 = true;
     }
 
-    // Detect analogWrite pin
-    const anaRe = /\banalogWrite\s*\(\s*(\d+)\s*,/g;
+    // Detect analogWrite pin and extract duty cycle value when literal
+    const anaRe = /\banalogWrite\s*\(\s*(\d+)\s*,\s*(\d+)\s*\)/g;
+    const anaReVar = /\banalogWrite\s*\(\s*(\d+)\s*,/g;
     while ((m = anaRe.exec(loopBody)) !== null) {
       const pin = parseInt(m[1], 10);
-      if (pin === 9) parsed.usesD9 = true;
+      if (pin === 9) { parsed.usesD9 = true; parsed.d9Duty = parseInt(m[2], 10); }
+    }
+    if (parsed.d9Duty === null) { // no literal — check for variable write
+      while ((m = anaReVar.exec(loopBody)) !== null) {
+        if (parseInt(m[1], 10) === 9) parsed.usesD9 = true;
+      }
     }
 
     // Extract any quoted Serial.print strings
@@ -465,6 +630,7 @@ void loop() {
     const blueprint = componentBlueprints[type];
     if (!source || !blueprint) return null;
 
+    pushHistory(); // save state before adding (no-op when _restoring)
     partCounter += 1;
     const part = document.createElement("article");
     part.className = `part ${blueprint.className}`;
@@ -520,6 +686,7 @@ void loop() {
     refreshWires();
     evaluateCircuit();
     updateArduinoCodePanelVisibility();
+    saveCircuit();
     return part;
   }
 
@@ -560,6 +727,24 @@ void loop() {
           <div class="output-visual" style="width:104px; height:80px; padding:6px; display:flex; flex-direction:column; justify-content:space-between">
             <div class="lcd-screen" style="flex:1; background:#040c06; border:1px solid #142a1f; border-radius:4px; padding:4px; font-family:'JetBrains Mono', monospace; font-size:8px; color:#52d38e; line-height:1.2; overflow:hidden">
               LCD 16x2 I2C<br>Awaiting signal
+            </div>
+          </div>
+        `;
+      }
+      if (type === "motor") {
+        return `
+          <div class="output-visual" style="display:grid; place-items:center; padding:4px">
+            <div style="width:50px; height:50px; border-radius:50%; background:linear-gradient(135deg,#2a3040,#1a2130); border:2px solid #30363d; display:grid; place-items:center; box-shadow:0 2px 8px rgba(0,0,0,0.5)">
+              <div class="motor-shaft" style="width:10px; height:10px; background:#8b949e; border-radius:50%; border:1.5px solid #56616d; transition:transform 0.1s;"></div>
+            </div>
+          </div>
+        `;
+      }
+      if (type === "oled") {
+        return `
+          <div class="output-visual" style="width:100px; height:76px; padding:4px">
+            <div class="oled-screen" style="width:100%; height:100%; background:#000511; border:1.5px solid #1a2844; border-radius:4px; display:grid; place-items:center; font-family:'JetBrains Mono',monospace; font-size:7px; color:#4a9eff; text-align:center; line-height:1.4; box-shadow:inset 0 0 8px rgba(74,158,255,0.1)">
+              OLED<br>128×64<br>I2C
             </div>
           </div>
         `;
@@ -735,6 +920,7 @@ void loop() {
       return;
     }
 
+    pushHistory();
     const removedId = selectedPart.dataset.id;
     wires.forEach((wire, index) => {
       if (wire.from.dataset.part === removedId || wire.to.dataset.part === removedId) wires[index] = null;
@@ -755,6 +941,7 @@ void loop() {
     refreshWires();
     evaluateCircuit();
     updateArduinoCodePanelVisibility();
+    saveCircuit();
   }
 
   function getPinProfile(pinName) {
@@ -852,6 +1039,7 @@ void loop() {
     }
 
     // Add wire connection
+    pushHistory();
     wires.push({ 
       from: activePin, 
       to: pin, 
@@ -864,6 +1052,7 @@ void loop() {
     benchHint.textContent = "Connection made.";
     refreshWires();
     evaluateCircuit();
+    saveCircuit();
   }
 
   // Redraw SVG wires on workspace
@@ -1379,10 +1568,28 @@ void loop() {
     if (event.target === componentModal) closeComponentModal();
   });
 
-  // Keyboard Shortcuts (Delete to remove, Esc to cancel action/modals)
+  // Keyboard Shortcuts (Delete to remove, Esc to cancel action/modals, Ctrl+Z/Y undo/redo)
   document.addEventListener("keydown", event => {
+    const inTextInput = document.activeElement === mentorQuestion
+      || document.activeElement === document.querySelector("#componentSearch")
+      || document.activeElement === customSpecInput
+      || document.activeElement === arduinoCodeArea;
+
+    // Undo: Ctrl+Z (skip when typing in text boxes)
+    if ((event.ctrlKey || event.metaKey) && event.key === "z" && !event.shiftKey && !inTextInput) {
+      event.preventDefault();
+      undo();
+      return;
+    }
+    // Redo: Ctrl+Y or Ctrl+Shift+Z (skip when typing in text boxes)
+    if ((event.ctrlKey || event.metaKey) && (event.key === "y" || (event.shiftKey && event.key === "Z")) && !inTextInput) {
+      event.preventDefault();
+      redo();
+      return;
+    }
+
     if (event.key === "Delete" || event.key === "Backspace") {
-      if (document.activeElement === mentorQuestion || document.activeElement === document.querySelector("#componentSearch") || document.activeElement === customSpecInput || document.activeElement === arduinoCodeArea) return;
+      if (inTextInput) return;
       removeSelectedPart();
     }
 
@@ -1434,6 +1641,46 @@ void loop() {
 
   if (codeEditorClose) {
     codeEditorClose.addEventListener("click", closeCodeEditor);
+  }
+
+  // --- Undo / Redo / Save / Theme toggle button handlers ---
+  if (undoBtn) undoBtn.addEventListener("click", undo);
+  if (redoBtn) redoBtn.addEventListener("click", redo);
+  if (saveBtn) {
+    saveBtn.addEventListener("click", () => {
+      saveCircuit();
+      saveBtn.classList.add("saved-flash");
+      setTimeout(() => saveBtn.classList.remove("saved-flash"), 800);
+      benchHint.textContent = "Circuit saved to browser storage.";
+    });
+  }
+  if (themeToggle) {
+    const applyTheme = (light) => {
+      document.documentElement.classList.toggle("light-mode", light);
+      themeToggle.textContent = light ? "🌑" : "🌙";
+    };
+    themeToggle.addEventListener("click", () => {
+      const next = !document.documentElement.classList.contains("light-mode");
+      applyTheme(next);
+      try { localStorage.setItem(THEME_KEY, next ? "light" : "dark"); } catch (e) {}
+    });
+    // Restore saved theme preference
+    try {
+      if (localStorage.getItem(THEME_KEY) === "light") applyTheme(true);
+    } catch (e) {}
+  }
+
+  // --- Syntax Highlight binding ---
+  const codeHighlight = document.querySelector("#codeHighlight");
+  function syncHighlight() {
+    if (!codeHighlight || !arduinoCodeArea) return;
+    codeHighlight.innerHTML = highlightArduinoCode(arduinoCodeArea.value) + "\n";
+    codeHighlight.scrollTop = arduinoCodeArea.scrollTop;
+    codeHighlight.scrollLeft = arduinoCodeArea.scrollLeft;
+  }
+  if (arduinoCodeArea) {
+    arduinoCodeArea.addEventListener("input", syncHighlight);
+    arduinoCodeArea.addEventListener("scroll", syncHighlight);
   }
 
   if (codePresetSelect) {
@@ -1521,16 +1768,27 @@ void loop() {
   // Initialize Library & Starter Circuit
   renderLibrary();
   
-  // Places initial board, resistor, LED, and ultrasonic distance sensor
-  addPart("arduino", 60, 80);
-  addPart("resistor", 340, 125);
-  addPart("led", 470, 110);
-  addPart("ultrasonic", 585, 110);
-  
+  // Try loading saved circuit; fall back to default starter layout
+  const hadSaved = loadCircuitFromStorage();
+  if (!hadSaved) {
+    _restoring = true; // suppress pushHistory / saveCircuit during init
+    addPart("arduino", 60, 80);
+    addPart("resistor", 340, 125);
+    addPart("led", 470, 110);
+    addPart("ultrasonic", 585, 110);
+    _restoring = false;
+  }
+
+  // Establish clean baseline for undo/redo
+  history.length = 0;
+  historyIndex = -1;
+  pushHistory();
+
   setTool("wire");
   renderInstrumentContent("multimeter");
   evaluateCircuit();
   updateArduinoCodePanelVisibility();
+  syncHighlight();
   
-  appendChatMessage("assistant", "🤖 **Mentor**: Welcome to Circuit Mentor! Drag components from the left shelf onto the workspace. Use the **WIRE** tool to link pins. Run the simulation to see voltages and waveforms update.");
+  appendChatMessage("assistant", "🤖 **Mentor**: Welcome to Circuit Mentor! Drag components from the left shelf onto the workspace. Use the **WIRE** tool to link pins. Run the simulation to see voltages and waveforms update. Your circuit auto-saves — use ↩/↪ to undo/redo.");
 })();

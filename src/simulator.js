@@ -166,9 +166,17 @@ window.CircuitSimulator = (() => {
     const d13High = (Math.floor(state.time / blinkHalf) % 2) === 0;
     const vD13 = d13High ? 5.0 : 0.0;
 
-    // Simulate PWM signal on D9 (servo sweep or pulse)
-    // Dynamic angle sweep between 0 and 180 degrees
-    state.servoAngle = 90 + Math.round(90 * Math.sin(state.time / 800));
+    // Simulate PWM signal on D9 — use uploaded code duty cycle or default sweep
+    if (state.customCode && state.customCode.d9Duty !== null) {
+      // analogWrite(9, VALUE) maps 0-255 → 0-180 degrees
+      state.servoAngle = Math.round((state.customCode.d9Duty / 255) * 180);
+    } else if (state.customCode && state.customCode.hasServo) {
+      // Servo sweep from uploaded sketch (no literal duty cycle found)
+      state.servoAngle = 90 + Math.round(90 * Math.sin(state.time / 500));
+    } else {
+      // Default slow sweep
+      state.servoAngle = 90 + Math.round(90 * Math.sin(state.time / 800));
+    }
 
     // 2. Traversal circuit nodes to find LED pathways
     let led = null;

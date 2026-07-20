@@ -72,6 +72,11 @@
             <button id="zoomOut" class="icon-button" type="button" title="Zoom Out">-</button>
             <output id="zoomValue">100%</output>
             <button id="zoomIn" class="icon-button" type="button" title="Zoom In">+</button>
+            <div class="toolbar-divider"></div>
+            <button id="undoBtn" class="icon-button" type="button" title="Undo (Ctrl+Z)">↩</button>
+            <button id="redoBtn" class="icon-button" type="button" title="Redo (Ctrl+Y)">↪</button>
+            <button id="saveBtn" class="icon-button save-toolbar-btn" type="button" title="Save circuit to browser">💾 SAVE</button>
+            <button id="themeToggle" class="icon-button" type="button" title="Toggle light/dark mode">🌙</button>
             <button id="codeEditorBtn" class="icon-button code-editor-toolbar-btn" type="button" title="Arduino Code Editor">⌨ CODE</button>
             <button id="runSimulation" class="run-button" type="button">Run Simulation</button>
           </div>
@@ -101,9 +106,13 @@
                 <option value="blink">📟 Preset: Blink Pin 13 LED</option>
                 <option value="potentiometer">🎛 Preset: LED brightness via Potentiometer</option>
                 <option value="ultrasonic">📡 Preset: Ultrasonic Distance Monitor</option>
+                <option value="servo">🔄 Preset: Servo Sweep</option>
+                <option value="analog">💡 Preset: LED Fade (analogWrite)</option>
                 <option value="custom">✏️ Custom — write your own code</option>
               </select>
-              <textarea id="arduinoCodeArea" spellcheck="false" class="code-textarea">// Arduino Blink Sketch
+              <div class="code-editor-wrap">
+                <pre id="codeHighlight" class="code-highlight-overlay" aria-hidden="true"></pre>
+                <textarea id="arduinoCodeArea" spellcheck="false" class="code-textarea">// Arduino Blink Sketch
 void setup() {
   pinMode(13, OUTPUT);
 }
@@ -114,6 +123,7 @@ void loop() {
   digitalWrite(13, LOW);
   delay(1000);
 }</textarea>
+              </div>
               <div class="code-editor-footer">
                 <span style="font-size:10px; color:var(--muted);">Ctrl+Enter to upload · Code drives simulation timing &amp; serial output</span>
                 <button id="btnUploadCode" type="button" class="code-upload-btn-main">⬆ Upload to Board</button>
